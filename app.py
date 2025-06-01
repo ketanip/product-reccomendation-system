@@ -1,61 +1,33 @@
 import streamlit as st
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
+import numpy as np
+import joblib
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Load data
-df = pd.read_csv("data.csv")
-df = df.drop("Product_Size", axis=1)
-
-# Price range setup
-min_price = float(df["Price_USD"].min())
-max_price = float(df["Price_USD"].max())
-
-# Features
-numeric_features = ["Price_USD", "Rating", "Number_of_Reviews"]
-categorical_features = ["Brand", "Category", "Usage_Frequency", "Skin_Type",
-                        "Gender_Target", "Packaging_Type", "Main_Ingredient",
-                        "Cruelty_Free", "Country_of_Origin"]
-
-# Preprocessing pipeline
-preprocessor = ColumnTransformer(
-    transformers=[
-        ("num", StandardScaler(), numeric_features),
-        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
-    ]
-)
-
-X = preprocessor.fit_transform(df)
-similarity = cosine_similarity(X)
+# Load data and model artifacts
+df = pd.read_csv("filtered_data.csv")
+X_reduced = np.load("X_reduced.npy")
 product_names = df["Product_Name"]
 
-# Recommendation function
-def recommend(product_name, top_n=3):
-    if product_name not in product_names.values:
-        return pd.DataFrame()
-    idx = product_names[product_names == product_name].index[0]
-    sim_scores = list(enumerate(similarity[idx]))
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-    sim_scores = sim_scores[1:top_n+1]
-    indices = [i[0] for i in sim_scores]
-    return df.iloc[indices]
-
 # Streamlit UI
+st.set_page_config(page_title="🛍️ Product Recommender", layout="wide")
 st.title("🛍️ Product Recommendation System")
 
 # Sidebar filters
 st.sidebar.header("🔍 Filter Products")
 
+min_price = float(df["Price_USD"].min())
+max_price = float(df["Price_USD"].max())
+
 selected_brand = st.sidebar.selectbox("Brand", ["All"] + sorted(df["Brand"].unique()))
 selected_skin = st.sidebar.selectbox("Skin Type", ["All"] + sorted(df["Skin_Type"].unique()))
 selected_gender = st.sidebar.selectbox("Gender Target", ["All"] + sorted(df["Gender_Target"].unique()))
 selected_cruelty = st.sidebar.selectbox("Cruelty-Free", ["All", True, False])
-price_range = st.sidebar.slider("💰 Price Range", min_value=float(min_price),
-                                max_value=float(max_price),
-                                value=(float(min_price), float(max_price)))
+price_range = st.sidebar.slider("💰 Price Range", min_value=min_price,
+                                max_value=max_price,
+                                value=(min_price, max_price))
 
-# Filter products
+# Apply filters
 filtered_df = df.copy()
 if selected_brand != "All":
     filtered_df = filtered_df[filtered_df["Brand"] == selected_brand]
@@ -71,6 +43,18 @@ filtered_df = filtered_df[(filtered_df["Price_USD"] >= price_range[0]) &
 
 filtered_product_names = filtered_df["Product_Name"].tolist()
 
+# Recommendation function
+def recommend(product_name, top_n=3):
+    if product_name not in product_names.values:
+        return pd.DataFrame()
+    idx = product_names[product_names == product_name].index[0]
+    similarities = cosine_similarity(X_reduced[idx].reshape(1, -1), X_reduced)[0]
+    sim_scores = list(enumerate(similarities))
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    sim_scores = sim_scores[1:top_n+1]
+    indices = [i[0] for i in sim_scores]
+    return df.iloc[indices]
+
 # Product selector
 selected_product = st.selectbox("Choose a product to get recommendations:", filtered_product_names)
 
@@ -80,18 +64,18 @@ if st.button("Get Recommendations"):
 
     if not recommendations.empty:
         st.subheader("You might also like:")
-        
+
         for _, row in recommendations.iterrows():
             st.markdown("---")
 
-            # Generate search URLs
+            # Search URLs
             query = f"{row['Product_Name']} {row['Brand']}".replace(" ", "+")
             amazon_url = f"https://www.amazon.in/s?k={query}"
             flipkart_url = f"https://www.flipkart.com/search?q={query}"
 
-            # Build HTML table with embedded buttons
+            # Display product in table format
             st.markdown(f"""
-            <table style='width:100%; border:1px solid #ddd; border-collapse: collapse;'>
+            <table style='width:100%; border:1px solid #ddd; border-collapse: collapse; font-size:16px;'>
                 <tr><th style='text-align:left; padding:6px;'>🏷️ Product Name</th><td style='padding:6px;'>{row['Product_Name']}</td></tr>
                 <tr><th style='text-align:left; padding:6px;'>Brand</th><td style='padding:6px;'>{row['Brand']}</td></tr>
                 <tr><th style='text-align:left; padding:6px;'>Price</th><td style='padding:6px;'>${row['Price_USD']}</td></tr>
@@ -113,7 +97,5 @@ if st.button("Get Recommendations"):
                 </tr>
             </table>
             """, unsafe_allow_html=True)
-
-            
     else:
         st.warning("No recommendations found.")
