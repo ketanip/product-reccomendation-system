@@ -21,4 +21,4 @@ RUN python train.py
 EXPOSE 8501
 
 # Command to run the Streamlit app
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.enableCORS=false"]
+CMD ["streamlit", "run", "app.py", "--server.port=8501"]
