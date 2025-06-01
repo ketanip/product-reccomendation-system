@@ -1,0 +1,10 @@
+services:
+  recommender-app:
+    build: .
+    container_name: product-recommender
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
