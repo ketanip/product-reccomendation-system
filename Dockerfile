@@ -18,9 +18,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY train.py .
 COPY data.csv .
+COPY filtered_data.csv .
+COPY preprocessor.pkl .
+COPY svd_model.pkl .
+COPY X_reduced.npy .
 
 # Optional: Run training only if model doesn't exist
 RUN python3 -c "import os; import pathlib; pathlib.Path('X_reduced.npy').exists() or __import__('train')"
+
 
 # Expose Streamlit port
 EXPOSE 8501
