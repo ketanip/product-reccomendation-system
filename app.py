@@ -2,9 +2,6 @@ import os
 import pickle
 import streamlit as st
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 
 DATA_PATH = "data.csv"
 MODEL_PATH = "recommendation_model.pkl"
@@ -13,50 +10,21 @@ MODEL_PATH = "recommendation_model.pkl"
 df = pd.read_csv(DATA_PATH)
 df = df.drop("Product_Size", axis=1)
 
+# Load model
+if not os.path.exists(MODEL_PATH):
+    st.error(f"Model not found. Please run `train.py` first to build the model.")
+    st.stop()
+
+with open(MODEL_PATH, "rb") as f:
+    model_data = pickle.load(f)
+
+similarity = model_data["similarity"]
+product_names = model_data["product_names"]
+
 # Price range setup
 min_price = float(df["Price_USD"].min())
 max_price = float(df["Price_USD"].max())
 
-# Features
-numeric_features = ["Price_USD", "Rating", "Number_of_Reviews"]
-categorical_features = ["Brand", "Category", "Usage_Frequency", "Skin_Type",
-                        "Gender_Target", "Packaging_Type", "Main_Ingredient",
-                        "Cruelty_Free", "Country_of_Origin"]
-
-def build_and_save_model(df):
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", StandardScaler(), numeric_features),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
-        ]
-    )
-    X = preprocessor.fit_transform(df)
-    similarity = cosine_similarity(X)
-    product_names = df["Product_Name"].values
-
-    model_data = {
-        "preprocessor": preprocessor,
-        "similarity": similarity,
-        "product_names": product_names
-    }
-
-    with open(MODEL_PATH, "wb") as f:
-        pickle.dump(model_data, f)
-    
-    return model_data
-
-# Load or build model
-if os.path.exists(MODEL_PATH):
-    with open(MODEL_PATH, "rb") as f:
-        model_data = pickle.load(f)
-else:
-    model_data = build_and_save_model(df)
-
-preprocessor = model_data["preprocessor"]
-similarity = model_data["similarity"]
-product_names = model_data["product_names"]
-
-# Recommendation function
 def recommend(product_name, top_n=3):
     if product_name not in product_names:
         return pd.DataFrame()
