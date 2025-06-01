@@ -1,24 +1,29 @@
-# Use official Python slim image
+# Use official slim Python image
 FROM python:3.10-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements (we'll create this next) and install dependencies
-COPY requirements.txt .
+# Install basic dependencies and OS utilities
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy and install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the app and training script and data
+# Copy application files
 COPY app.py .
 COPY train.py .
 COPY data.csv .
 
-# Run the training script to build and save the model
-# RUN python train.py
+# Optional: Run training only if model doesn't exist
+RUN python3 -c "import os; import pathlib; pathlib.Path('X_reduced.npy').exists() or __import__('train')"
 
-# Expose Streamlit default port
+# Expose Streamlit port
 EXPOSE 8501
 
-# Command to run the Streamlit app
+# Start Streamlit app
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.enableCORS=false"]
