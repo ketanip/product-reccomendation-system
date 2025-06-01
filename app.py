@@ -1,34 +1,40 @@
-import os
-import pickle
 import streamlit as st
 import pandas as pd
-
-DATA_PATH = "data.csv"
-MODEL_PATH = "recommendation_model.pkl"
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Load data
-df = pd.read_csv(DATA_PATH)
+df = pd.read_csv("data.csv")
 df = df.drop("Product_Size", axis=1)
-
-# Load model
-if not os.path.exists(MODEL_PATH):
-    st.error(f"Model not found. Please run `train.py` first to build the model.")
-    st.stop()
-
-with open(MODEL_PATH, "rb") as f:
-    model_data = pickle.load(f)
-
-similarity = model_data["similarity"]
-product_names = model_data["product_names"]
 
 # Price range setup
 min_price = float(df["Price_USD"].min())
 max_price = float(df["Price_USD"].max())
 
+# Features
+numeric_features = ["Price_USD", "Rating", "Number_of_Reviews"]
+categorical_features = ["Brand", "Category", "Usage_Frequency", "Skin_Type",
+                        "Gender_Target", "Packaging_Type", "Main_Ingredient",
+                        "Cruelty_Free", "Country_of_Origin"]
+
+# Preprocessing pipeline
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", StandardScaler(), numeric_features),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_features)
+    ]
+)
+
+X = preprocessor.fit_transform(df)
+similarity = cosine_similarity(X)
+product_names = df["Product_Name"]
+
+# Recommendation function
 def recommend(product_name, top_n=3):
-    if product_name not in product_names:
+    if product_name not in product_names.values:
         return pd.DataFrame()
-    idx = list(product_names).index(product_name)
+    idx = product_names[product_names == product_name].index[0]
     sim_scores = list(enumerate(similarity[idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
     sim_scores = sim_scores[1:top_n+1]
@@ -74,7 +80,7 @@ if st.button("Get Recommendations"):
 
     if not recommendations.empty:
         st.subheader("You might also like:")
-
+        
         for _, row in recommendations.iterrows():
             st.markdown("---")
 
@@ -108,5 +114,6 @@ if st.button("Get Recommendations"):
             </table>
             """, unsafe_allow_html=True)
 
+            
     else:
         st.warning("No recommendations found.")

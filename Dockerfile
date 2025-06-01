@@ -15,7 +15,7 @@ COPY train.py .
 COPY data.csv .
 
 # Run the training script to build and save the model
-RUN python train.py
+# RUN python train.py
 
 # Expose Streamlit default port
 EXPOSE 8501
